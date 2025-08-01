@@ -1,0 +1,7 @@
+Flask
+Flask-Cors
+img2pdf
+Pillow
+# To enable the real video processing, you would add these:
+# yt-dlp
+# opencv-python
