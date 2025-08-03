@@ -15,20 +15,22 @@ import uuid
 from PIL import Image, ImageDraw, ImageFont
 from skimage.metrics import structural_similarity as ssim
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+# Set up logging for better debugging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
+# The health endpoint is a good practice for checking if the service is running
 @app.route('/health')
 def health():
     return jsonify({"status": "ok"}), 200
+
+# The main page route
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 def get_youtube_video_title(url):
     """Fetches the title of a YouTube video without downloading it."""
@@ -45,21 +47,25 @@ def get_youtube_video_title(url):
         return 'Sheet Music'
 
 def download_youtube_video(url, output_path='video.mp4'):
+    """Downloads a YouTube video to a specified path."""
     logger.info(f"Downloading video from {url}...")
     ydl_opts = {
-        'format': 'best',
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': output_path,
         'quiet': True
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
+        if not os.path.exists(output_path):
+            raise FileNotFoundError(f"yt-dlp failed to create file at {output_path}")
         logger.info("Video downloaded successfully.")
         return output_path
     except Exception as e:
         logger.error(f"Failed to download video: {e}")
         raise
 
+# ... (The rest of your functions: extract_and_save_frames, combine_frames_for_pdf, and cleanup_files are unchanged as they are correct) ...
 def extract_and_save_frames(video_path, output_dir, similarity_threshold=0.96):
     logger.info(f"Extracting frames from video '{video_path}' and cropping to white sheet music...")
     os.makedirs(output_dir, exist_ok=True)
@@ -220,7 +226,7 @@ def process_video():
         image_paths = extract_and_save_frames(temp_video_path, temp_dir, similarity_threshold=0.96)
 
         if not image_paths:
-            return jsonify({"error": "No frames were extracted."}), 500
+            return jsonify({"error": "No frames were extracted. Please ensure the video contains sheet music."}), 500
 
         combined_image_paths = combine_frames_for_pdf(image_paths, temp_dir, title=video_title)
 
@@ -240,20 +246,24 @@ def process_video():
         return response
 
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"An unexpected error occurred: {e}")
+        return jsonify({"error": f"An error occurred during processing: {e}"}), 500
     finally:
-        if os.path.exists(temp_video_path):
-            os.remove(temp_video_path)
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
+        # Cleanup temporary files
+        cleanup_files(temp_video_path, temp_dir, pdf_filename)
+
 
 def cleanup_files(video_path, temp_dir, pdf_path):
+    """Clean up temporary files and directories."""
     try:
         if os.path.exists(pdf_path):
             os.remove(pdf_path)
+        if os.path.exists(video_path):
+            os.remove(video_path)
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
     except Exception as e:
-        logger.warning(f"Failed to clean up PDF {pdf_path}: {e}")
+        logger.warning(f"Failed to clean up files: {e}")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
