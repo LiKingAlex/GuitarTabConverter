@@ -1,5 +1,6 @@
 [start]
 cmd = "gunicorn app:app"
 
-[phases.pre_install]
-cmds = ["sudo apt-get update && sudo apt-get install -y libgl1-mesa-glx"]
+[build]
+# This tells Nixpacks to install the libglvnd package, which provides the libGL.so.1 library.
+pkgs = ["libglvnd"]
