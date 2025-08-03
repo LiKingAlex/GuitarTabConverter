@@ -1,7 +1,8 @@
 Flask
-Flask-Cors
+flask-cors
 img2pdf
+yt-dlp
+opencv-python
+numpy
 Pillow
-# To enable the real video processing, you would add these:
-# yt-dlp
-# opencv-python
+scikit-image
