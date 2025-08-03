@@ -1,1 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube to Sheet Music Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg text-center text-white">
+        <h1 class="text-3xl font-bold mb-4">YouTube to Sheet Music Converter</h1>
+        <p class="text-gray-400 mb-6">
+            Enter a YouTube video URL containing guitar sheet music to generate a PDF.
+        </p>
 
+        <div class="mb-6">
+            <label for="youtubeUrl" class="block text-left text-sm font-medium text-gray-300 mb-1">
+                YouTube URL
+            </label>
+            <input type="text" id="youtubeUrl" placeholder="e.g., https://www.youtube.com/watch?v=..."
+                   class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400 transition-all">
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-col space-y-4 md:flex-row md:space-x-4 md:space-y-0">
+            <button id="processPdfButton"
+                    class="w-full bg-purple-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:bg-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800">
+                Generate PDF
+            </button>
+            <button id="playOriginalButton"
+                    class="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:bg-green-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800">
+                Play Original Video
+            </button>
+        </div>
+
+        <button id="resetButton"
+                class="w-full mt-4 bg-gray-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:bg-gray-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800">
+            Reset
+        </button>
+
+        <!-- Status area -->
+        <div id="statusArea" class="mt-8 hidden">
+            <div id="loading" class="flex flex-col items-center">
+                <svg class="animate-spin h-8 w-8 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-4 text-gray-300">Processing...</p>
+                <p id="progressMessage" class="mt-2 text-gray-400 hidden"></p>
+            </div>
+
+            <div id="result" class="hidden">
+                <p id="resultMessage" class="text-green-400 font-medium mb-4">Success! Your file is ready.</p>
+                <a href="#" id="downloadLink" download="file.pdf"
+                   class="inline-block bg-green-500 text-white font-semibold py-2 px-4 rounded-xl hover:bg-green-600 transition-colors duration-300">
+                    Download File
+                </a>
+            </div>
+
+            <div id="error" class="hidden">
+                <p id="errorMessage" class="text-red-400 font-medium mb-4"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const processPdfButton = document.getElementById('processPdfButton');
+            const playOriginalButton = document.getElementById('playOriginalButton');
+            const resetButton = document.getElementById('resetButton');
+            const youtubeUrlInput = document.getElementById('youtubeUrl');
+            const statusArea = document.getElementById('statusArea');
+            const loadingSpinner = document.getElementById('loading');
+            const progressMessage = document.getElementById('progressMessage');
+            const resultSection = document.getElementById('result');
+            const resultMessage = document.getElementById('resultMessage');
+            const errorSection = document.getElementById('error');
+            const errorMessage = document.getElementById('errorMessage');
+            const downloadLink = document.getElementById('downloadLink');
+
+            function showMessage(message, isError = false) {
+                loadingSpinner.classList.add('hidden');
+                resultSection.classList.add('hidden');
+                errorSection.classList.add('hidden');
+                statusArea.classList.remove('hidden');
+
+                if (isError) {
+                    errorMessage.textContent = message;
+                    errorSection.classList.remove('hidden');
+                } else {
+                    progressMessage.textContent = message;
+                    progressMessage.classList.remove('hidden');
+                }
+            }
+
+            function resetForm() {
+                youtubeUrlInput.value = '';
+                statusArea.classList.add('hidden');
+                loadingSpinner.classList.add('hidden');
+                resultSection.classList.add('hidden');
+                errorSection.classList.add('hidden');
+                progressMessage.classList.add('hidden');
+                processPdfButton.disabled = false;
+            }
+
+            async function processRequest() {
+                const url = youtubeUrlInput.value.trim();
+                const backendUrl = `http://127.0.0.1:5000/process-video`;
+
+                if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
+                    showMessage("Please enter a valid YouTube URL.", true);
+                    return;
+                }
+
+                statusArea.classList.remove('hidden');
+                loadingSpinner.classList.remove('hidden');
+                resultSection.classList.add('hidden');
+                errorSection.classList.add('hidden');
+                progressMessage.classList.add('hidden');
+                processPdfButton.disabled = true;
+
+                try {
+                    const response = await fetch(backendUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ url: url })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Something went wrong on the server.');
+                    }
+
+                    const fileBlob = await response.blob();
+                    const blobUrl = URL.createObjectURL(fileBlob);
+
+                    downloadLink.href = blobUrl;
+                    downloadLink.setAttribute('download', 'sheet_music.pdf');
+                    downloadLink.textContent = `Download PDF`;
+
+                    resultMessage.textContent = `Success! Sheet music PDF is ready.`;
+
+                    loadingSpinner.classList.add('hidden');
+                    resultSection.classList.remove('hidden');
+
+                } catch (error) {
+                    showMessage(`Error: ${error.message}`, true);
+                } finally {
+                    processPdfButton.disabled = false;
+                }
+            }
+
+            processPdfButton.addEventListener('click', processRequest);
+
+            playOriginalButton.addEventListener('click', () => {
+                const url = youtubeUrlInput.value.trim();
+                if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
+                    showMessage("Please enter a valid YouTube URL to play.", true);
+                    return;
+                }
+                window.open(url, '_blank');
+            });
+
+            resetButton.addEventListener('click', resetForm);
+        });
+    </script>
+</body>
+</html>
