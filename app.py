@@ -1,8 +1,7 @@
 # app.py
 # Requirements: Flask, Flask-Cors, img2pdf, Pillow, yt-dlp, opencv-python, numpy, scikit-image
 
-
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, send_file, jsonify, render_template
 from flask_cors import CORS
 import os
 import shutil
@@ -15,9 +14,6 @@ import tempfile
 import uuid
 from PIL import Image, ImageDraw, ImageFont
 from skimage.metrics import structural_similarity as ssim
-from flask import Flask, request, send_file, jsonify, render_template
-
-
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,6 +25,10 @@ CORS(app)
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"}), 200
 
 def get_youtube_video_title(url):
     """Fetches the title of a YouTube video without downloading it."""
@@ -60,9 +60,6 @@ def download_youtube_video(url, output_path='video.mp4'):
         logger.error(f"Failed to download video: {e}")
         raise
 
-# REVERTED: Reverting to the original frame extraction logic that was in place
-# before attempting to fix the ghosting issue. This includes the original
-# similarity_threshold, check_interval, and binarization methods.
 def extract_and_save_frames(video_path, output_dir, similarity_threshold=0.96):
     logger.info(f"Extracting frames from video '{video_path}' and cropping to white sheet music...")
     os.makedirs(output_dir, exist_ok=True)
@@ -117,7 +114,7 @@ def extract_and_save_frames(video_path, output_dir, similarity_threshold=0.96):
             continue
 
         if last_saved_frame_gray is None:
-            similarity = 0 # force save first frame
+            similarity = 0  # force save first frame
         else:
             similarity = ssim(cropped_gray, last_saved_frame_gray)
 
@@ -138,7 +135,6 @@ def extract_and_save_frames(video_path, output_dir, similarity_threshold=0.96):
 def combine_frames_for_pdf(image_paths, output_dir, title=None):
     logger.info(f"Combining frames into pages optimized for Letter size printing.")
 
-    # Constants
     dpi = 300
     page_width = int(8.5 * dpi)
     page_height = int(11 * dpi)
@@ -152,7 +148,6 @@ def combine_frames_for_pdf(image_paths, output_dir, title=None):
     title_font_size = 60
 
     try:
-        # Use a more elegant font if available
         font = ImageFont.truetype("arial.ttf", title_font_size)
     except IOError:
         font = ImageFont.load_default(size=title_font_size)
@@ -180,14 +175,12 @@ def combine_frames_for_pdf(image_paths, output_dir, title=None):
             frame = frame.resize((max_frame_width, new_height), Image.Resampling.LANCZOS)
 
             if current_y + new_height > page_height - margin:
-                # Save current page
                 combined_filename = f"combined_page_{page_count}.png"
                 combined_filepath = os.path.join(output_dir, combined_filename)
                 page.save(combined_filepath)
                 combined_image_paths.append(combined_filepath)
                 page_count += 1
 
-                # Start new page
                 page = Image.new("RGB", (page_width, page_height), "white")
                 draw = ImageDraw.Draw(page)
                 current_y = margin
@@ -199,7 +192,6 @@ def combine_frames_for_pdf(image_paths, output_dir, title=None):
         except Exception as e:
             logger.warning(f"Could not process image {path}: {e}")
 
-    # Save last page
     combined_filename = f"combined_page_{page_count}.png"
     combined_filepath = os.path.join(output_dir, combined_filename)
     page.save(combined_filepath)
@@ -225,7 +217,6 @@ def process_video():
 
     try:
         download_youtube_video(youtube_url, output_path=temp_video_path)
-        # REVERTED: Passing the original similarity_threshold to the function.
         image_paths = extract_and_save_frames(temp_video_path, temp_dir, similarity_threshold=0.96)
 
         if not image_paths:
@@ -265,4 +256,4 @@ def cleanup_files(video_path, temp_dir, pdf_path):
         logger.warning(f"Failed to clean up PDF {pdf_path}: {e}")
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', port=5000)
