@@ -28,7 +28,6 @@
                    class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400 transition-all">
         </div>
 
-        <!-- Action Buttons -->
         <div class="flex flex-col space-y-4 md:flex-row md:space-x-4 md:space-y-0">
             <button id="processPdfButton"
                     class="w-full bg-purple-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:bg-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800">
@@ -45,7 +44,6 @@
             Reset
         </button>
 
-        <!-- Status area -->
         <div id="statusArea" class="mt-8 hidden">
             <div id="loading" class="flex flex-col items-center">
                 <svg class="animate-spin h-8 w-8 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -112,9 +110,13 @@
 
             async function processRequest() {
                 const url = youtubeUrlInput.value.trim();
-                const backendUrl = `http://127.0.0.1:5000/process-video`;
+                
+                // --- THIS IS THE CRUCIAL CHANGE ---
+                // We use a relative path so it works correctly on Render
+                const backendUrl = '/process-video'; 
 
-                if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
+                // Check for a valid YouTube URL
+                if (!url || (!url.includes('youtube.com/') && !url.includes('youtu.be/'))) {
                     showMessage("Please enter a valid YouTube URL.", true);
                     return;
                 }
@@ -123,10 +125,12 @@
                 loadingSpinner.classList.remove('hidden');
                 resultSection.classList.add('hidden');
                 errorSection.classList.add('hidden');
-                progressMessage.classList.add('hidden');
+                progressMessage.classList.remove('hidden');
+                progressMessage.textContent = 'Starting conversion...';
                 processPdfButton.disabled = true;
 
                 try {
+                    // Send the POST request to the backend
                     const response = await fetch(backendUrl, {
                         method: 'POST',
                         headers: {
@@ -135,16 +139,25 @@
                         body: JSON.stringify({ url: url })
                     });
 
+                    // Handle errors from the server
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.error || 'Something went wrong on the server.');
                     }
 
+                    // Get the PDF file from the response
                     const fileBlob = await response.blob();
                     const blobUrl = URL.createObjectURL(fileBlob);
+                    
+                    // Attempt to get the filename from the Content-Disposition header
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = 'sheet_music.pdf';
+                    if (contentDisposition && contentDisposition.includes('filename=')) {
+                        filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+                    }
 
                     downloadLink.href = blobUrl;
-                    downloadLink.setAttribute('download', 'sheet_music.pdf');
+                    downloadLink.setAttribute('download', filename);
                     downloadLink.textContent = `Download PDF`;
 
                     resultMessage.textContent = `Success! Sheet music PDF is ready.`;
@@ -163,7 +176,7 @@
 
             playOriginalButton.addEventListener('click', () => {
                 const url = youtubeUrlInput.value.trim();
-                if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
+                if (!url || (!url.includes('youtube.com/') && !url.includes('youtu.be/'))) {
                     showMessage("Please enter a valid YouTube URL to play.", true);
                     return;
                 }
