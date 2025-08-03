@@ -1,6 +1,7 @@
 # app.py
 # Requirements: Flask, Flask-Cors, img2pdf, Pillow, yt-dlp, opencv-python, numpy, scikit-image
 
+
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 import os
@@ -14,6 +15,9 @@ import tempfile
 import uuid
 from PIL import Image, ImageDraw, ImageFont
 from skimage.metrics import structural_similarity as ssim
+from flask import Flask, request, send_file, jsonify, render_template
+
+
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 def get_youtube_video_title(url):
     """Fetches the title of a YouTube video without downloading it."""
